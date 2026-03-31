@@ -127,41 +127,38 @@
             const root = { name: "온라인 콘텐츠", children: [] };
 
             data.forEach(row => {
-                // 콘텐츠명이 없는 빈 행은 건너뛰기
                 if (!row['콘텐츠명']) return;
 
                 const avail = row['공동활용가능여부'] || '분류없음';
                 const ai = row['AI교육여부'] || '분류없음';
                 const contentName = row['콘텐츠명'];
 
-                // 1단계 노드 (공동활용가능여부: 예/아니오) 찾기 또는 생성
+                // 1단계 노드 (공동활용가능여부)
                 let availNode = root.children.find(n => n.name === avail);
                 if (!availNode) {
                     availNode = { name: avail, children: [] };
                     root.children.push(availNode);
                 }
 
-                // 2단계 노드 (AI교육여부: O/X) 찾기 또는 생성
+                // 2단계 노드 (AI교육여부)
                 let aiNode = availNode.children.find(n => n.name === ai);
                 if (!aiNode) {
                     aiNode = { name: ai, children: [] };
                     availNode.children.push(aiNode);
                 }
 
-                // 3단계 노드 (콘텐츠명) 생성 및 세부 정보 저장
-                // value 속성에 전체 row 데이터를 넣어두면 나중에 클릭 시 꺼내볼 수 있습니다.
+                // 3단계 노드 (콘텐츠명) 및 세부 데이터 저장
                 aiNode.children.push({
                     name: contentName,
-                    value: row 
+                    value: row // 클릭 시 표출할 전체 데이터 보관
                 });
             });
 
             return root;
         }
 
-        // 2. 변환된 데이터를 바탕으로 ECharts 마인드맵을 그리는 함수
+        // 2. ECharts 마인드맵 렌더링 함수
         function renderMindmap(treeData) {
-            // 로딩 애니메이션 표시
             myChart.showLoading();
             
             const option = {
@@ -169,7 +166,6 @@
                     trigger: 'item',
                     triggerOn: 'mousemove',
                     formatter: function (info) {
-                        // 툴팁(마우스 오버 시 뜨는 정보) 설정
                         return info.name;
                     }
                 },
@@ -180,11 +176,11 @@
                         top: '5%',
                         left: '10%',
                         bottom: '5%',
-                        right: '30%', // 오른쪽 라벨이 잘리지 않도록 여백 확보
+                        right: '30%', 
                         symbolSize: 10,
-                        orient: 'LR', // Left to Right (왼쪽에서 오른쪽으로 뻗어감)
+                        orient: 'LR',
                         expandAndCollapse: true,
-                        initialTreeDepth: 2, // 처음 화면 로드 시 펼쳐질 깊이 (2단계까지)
+                        initialTreeDepth: 2, 
                         label: {
                             position: 'left',
                             verticalAlign: 'middle',
@@ -197,7 +193,7 @@
                                 position: 'right',
                                 verticalAlign: 'middle',
                                 align: 'left',
-                                color: '#003366', // 끝단 콘텐츠명은 색상을 다르게
+                                color: '#003366',
                                 fontWeight: 'bold'
                             }
                         },
@@ -210,7 +206,43 @@
             myChart.hideLoading();
         }
 
-        // 파일 업로드 이벤트 리스너
+        // 3. (Step 4 핵심) 노드 클릭 이벤트 처리 
+        myChart.on('click', function (params) {
+            const nodeData = params.data;
+
+            // value 속성이 있는 경우(즉, 끝단 콘텐츠명 노드를 클릭한 경우)에만 우측 표 업데이트
+            if (nodeData && nodeData.value) {
+                const detailData = nodeData.value;
+                const tableContainer = document.getElementById('table-container');
+                const infoBoxTitle = document.querySelector('#infoBox h2');
+
+                // 우측 패널 제목을 클릭한 콘텐츠명으로 변경
+                infoBoxTitle.textContent = "상세 정보 : " + nodeData.name;
+
+                // 테이블 HTML 동적 생성
+                let tableHTML = '<table><tbody>';
+                
+                // 데이터 객체의 key, value를 순회하며 행(tr) 생성
+                for (const key in detailData) {
+                    // 빈 데이터나 불필요한 속성은 건너뛸 수 있도록 조건 추가 가능
+                    if (detailData.hasOwnProperty(key)) {
+                        tableHTML += `
+                            <tr>
+                                <th>${key}</th>
+                                <td>${detailData[key] ? detailData[key] : '-'}</td>
+                            </tr>
+                        `;
+                    }
+                }
+                
+                tableHTML += '</tbody></table>';
+
+                // 완성된 테이블을 우측 패널에 삽입
+                tableContainer.innerHTML = tableHTML;
+            }
+        });
+
+        // 4. 파일 업로드 이벤트 리스너
         document.getElementById('csvFileInput').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -220,11 +252,7 @@
                 skipEmptyLines: true,
                 complete: function(results) {
                     const csvData = results.data;
-                    
-                    // 데이터 가공 함수 호출
                     const treeData = buildTreeData(csvData);
-                    
-                    // 차트 렌더링 함수 호출
                     renderMindmap(treeData);
                 },
                 error: function(err) {
