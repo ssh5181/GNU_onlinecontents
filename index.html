@@ -28,7 +28,7 @@
 <body>
 
     <header>
-        <h1>온라인콘텐츠 활용 여부 기반 네트워크 뷰 (부서별 분류 추가)</h1>
+        <h1>온라인콘텐츠 네트워크 뷰 (부서별 접기/펼치기)</h1>
         <div style="color: #a371f7; font-size: 0.9rem; font-weight: bold;">
             🟢 데이터 자동 연동 중...
         </div>
@@ -50,11 +50,15 @@
 
     <script>
         let myChart = echarts.init(document.getElementById('mindmap-area'));
+        
+        // 원본 전체 데이터를 보관할 전역 변수
+        let fullGraphData = { nodes: [], links: [] };
 
         window.addEventListener('resize', function() {
             myChart.resize();
         });
 
+        // 1. 전체 데이터를 노드와 링크 구조로 변환하는 함수
         function buildGraphData(data) {
             let nodes = [];
             let links = [];
@@ -63,7 +67,6 @@
             data.forEach((row, index) => {
                 if (!row['콘텐츠명'] || row['콘텐츠명'].trim() === '') return;
 
-                // 데이터 변수 할당
                 const rawAvail = row['공동활용가능여부'] || '아니오';
                 const availLabel = rawAvail === '예' ? '공동활용 가능' : '공동활용 불가';
                 const rawAi = row['AI교육여부'] || 'X';
@@ -71,20 +74,19 @@
                 const deptLabel = row['제작부서'] || '소속미상';
                 const contentName = row['콘텐츠명'];
 
-                // 고유 ID 생성
                 const availId = `avail_${availLabel}`;
                 const aiId = `ai_${availLabel}_${rawAi}`;
-                const deptId = `dept_${aiId}_${deptLabel}`; // 특정 AI교육 노드 하위에 속하는 부서 ID
+                const deptId = `dept_${aiId}_${deptLabel}`; 
                 const contentId = `content_${index}`; 
 
-                // 1. 공동활용 그룹 (Category 0)
+                // Category 0
                 if (!nodeMap.has(availId)) {
                     nodes.push({ id: availId, name: availLabel, category: 0, symbolSize: 55, contentList: [] });
                     nodeMap.set(availId, true);
                 }
                 nodes.find(n => n.id === availId).contentList.push(row);
 
-                // 2. AI교육 여부 (Category 1)
+                // Category 1
                 let aiNode = nodes.find(n => n.id === aiId);
                 if (!aiNode) {
                     aiNode = { id: aiId, name: aiLabel, category: 1, symbolSize: 40, contentList: [] };
@@ -94,25 +96,24 @@
                 }
                 aiNode.contentList.push(row);
 
-                // 3. 제작부서 (Category 2) - 새롭게 추가된 계층
+                // Category 2 (제작부서) - 🔥 collapsed 속성을 true로 설정하여 기본적으로 접어둠
                 let deptNode = nodes.find(n => n.id === deptId);
                 if (!deptNode) {
-                    deptNode = { id: deptId, name: deptLabel, category: 2, symbolSize: 28, contentList: [] };
+                    deptNode = { id: deptId, name: deptLabel, category: 2, symbolSize: 28, contentList: [], collapsed: true };
                     nodes.push(deptNode);
                     nodeMap.set(deptId, true);
                     links.push({ source: aiId, target: deptId });
                 }
                 deptNode.contentList.push(row);
 
-                // 4. 콘텐츠 (Category 3)
+                // Category 3 (콘텐츠) - 🔥 부모 노드(deptId)가 누구인지 기억하도록 parentId 속성 추가
                 if (!nodeMap.has(contentId)) {
-                    nodes.push({ id: contentId, name: contentName, category: 3, value: row, symbolSize: 6 });
+                    nodes.push({ id: contentId, name: contentName, category: 3, value: row, symbolSize: 6, parentId: deptId });
                     nodeMap.set(contentId, true);
                     links.push({ source: deptId, target: contentId });
                 }
             });
 
-            // 투명 링크 유지
             if (nodeMap.has('avail_공동활용 가능') && nodeMap.has('avail_공동활용 불가')) {
                 links.push({
                     source: 'avail_공동활용 가능',
@@ -124,29 +125,51 @@
             return { nodes, links };
         }
 
-        // 공통 서식 딕셔너리 (텍스트를 원 안/밖으로 정밀하게 정렬)
+        // 2. 화면에 보여줄 데이터만 필터링하는 함수
+        function getVisibleData() {
+            // 접혀있는 부서(Category 2)의 자식 노드(Category 3)는 제외함
+            let visibleNodes = fullGraphData.nodes.filter(node => {
+                if (node.category === 3) {
+                    let parent = fullGraphData.nodes.find(n => n.id === node.parentId);
+                    // 부모 노드가 있고, 부모가 '접혀있지 않을 때(collapsed: false)'만 화면에 표시
+                    return parent && !parent.collapsed;
+                }
+                return true; // 카테고리 0, 1, 2는 항상 표시
+            });
+
+            let visibleNodeIds = new Set(visibleNodes.map(n => n.id));
+
+            // 화면에 표시되는 노드들끼리 연결된 선만 남김
+            let visibleLinks = fullGraphData.links.filter(link => {
+                let sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+                let targetId = typeof link.target === 'object' ? link.target.id : link.target;
+                return visibleNodeIds.has(sourceId) && visibleNodeIds.has(targetId);
+            });
+
+            return { nodes: visibleNodes, links: visibleLinks };
+        }
+
         const sharedRich = {
-            // Category 0 (공동활용): Size 55
             spacer0: { height: 36, lineHeight: 36 }, 
             count0: { fontSize: 18, color: '#fff', fontWeight: 'bold', align: 'center', lineHeight: 18 }, 
             name0: { fontSize: 15, color: '#fff', fontWeight: 'bold', align: 'center', padding: [21, 0, 0, 0], lineHeight: 15 },
             
-            // Category 1 (AI교육): Size 40
             spacer1: { height: 26, lineHeight: 26 }, 
             count1: { fontSize: 14, color: '#fff', fontWeight: 'bold', align: 'center', lineHeight: 14 },
             name1: { fontSize: 13, color: '#e0e0e0', fontWeight: 'bold', align: 'center', padding: [16, 0, 0, 0], lineHeight: 13 },
 
-            // Category 2 (제작부서): Size 28
             spacer2: { height: 18, lineHeight: 18 }, 
             count2: { fontSize: 11, color: '#fff', fontWeight: 'bold', align: 'center', lineHeight: 11 },
             name2: { fontSize: 11, color: '#ccc', fontWeight: 'bold', align: 'center', padding: [12, 0, 0, 0], lineHeight: 11 },
             
-            // Category 3 (콘텐츠)
             name3: { fontSize: 9, color: '#888' },
             name3Emph: { fontSize: 13, color: '#fff', backgroundColor: 'rgba(0,0,0,0.7)', padding: [4, 6], borderRadius: 4 }
         };
 
-        function renderGraph(graphData) {
+        // 3. 차트 렌더링 함수 (최초 로드 시 1회 호출)
+        function initChart() {
+            const visibleData = getVisibleData();
+            
             const option = {
                 tooltip: {
                     trigger: 'item',
@@ -156,7 +179,7 @@
                         return params.name;
                     }
                 },
-                color: ['#a371f7', '#4facfe', '#ffb84d', '#f5576c'], // 3번째 색상(노란주황)을 부서 노드에 할당
+                color: ['#a371f7', '#4facfe', '#ffb84d', '#f5576c'], 
                 legend: {
                     data: ['공동활용 그룹', 'AI교육 여부', '제작부서', '콘텐츠'],
                     textStyle: { color: '#e0e0e0' },
@@ -166,8 +189,8 @@
                     {
                         type: 'graph',
                         layout: 'force', 
-                        data: graphData.nodes,
-                        links: graphData.links,
+                        data: visibleData.nodes,
+                        links: visibleData.links,
                         categories: [
                             { name: '공동활용 그룹', label: { position: 'inside' } },
                             { name: 'AI교육 여부', label: { position: 'inside' } },
@@ -184,9 +207,10 @@
                                 } else if (params.data.category === 1) {
                                     return `{spacer1| }\n{count1|${params.data.contentList.length}}\n{name1|${params.name.split(' (')[0]}}`;
                                 } else if (params.data.category === 2) {
-                                    // 제작부서명이 너무 길면 6글자에서 생략하여 깔끔하게 표출
                                     let deptName = params.name.length > 6 ? params.name.substring(0, 6) + '..' : params.name;
-                                    return `{spacer2| }\n{count2|${params.data.contentList.length}}\n{name2|${deptName}}`;
+                                    // 🔥 접혀있으면 ➕, 펼쳐져있으면 ➖ 기호를 이름 앞에 표시
+                                    let icon = params.data.collapsed ? '➕' : '➖';
+                                    return `{spacer2| }\n{count2|${params.data.contentList.length}}\n{name2|${icon} ${deptName}}`;
                                 } else {
                                     if (params.name.length > 5) return `{name3|${params.name.substring(0, 5) + '..'}}`;
                                     return `{name3|${params.name}}`;
@@ -199,123 +223,16 @@
                             label: {
                                 show: true,
                                 formatter: function(params) {
-                                    // 호버 시 부서명(Category 2)이나 콘텐츠명(Category 3) 전체 텍스트 표시
-                                    if (params.data.category === 0) {
-                                        return `{spacer0| }\n{count0|${params.data.contentList.length}}\n{name0|${params.name}}`;
-                                    } else if (params.data.category === 1) {
-                                        return `{spacer1| }\n{count1|${params.data.contentList.length}}\n{name1|${params.name.split(' (')[0]}}`;
-                                    } else if (params.data.category === 2) {
-                                        return `{spacer2| }\n{count2|${params.data.contentList.length}}\n{name2|${params.name}}`; 
-                                    } else {
-                                        return `{name3Emph|${params.name}}`;
+                                    if (params.data.category === 0) return `{spacer0| }\n{count0|${params.data.contentList.length}}\n{name0|${params.name}}`;
+                                    if (params.data.category === 1) return `{spacer1| }\n{count1|${params.data.contentList.length}}\n{name1|${params.name.split(' (')[0]}}`;
+                                    if (params.data.category === 2) {
+                                        let icon = params.data.collapsed ? '➕' : '➖';
+                                        return `{spacer2| }\n{count2|${params.data.contentList.length}}\n{name2|${icon} ${params.name}}`; 
                                     }
+                                    return `{name3Emph|${params.name}}`;
                                 },
                                 rich: sharedRich
                             }
                         },
                         force: {
-                            // 뎁스(Depth)가 4단계로 깊어졌으므로 노드들이 서로 거리를 두도록 반발력 약간 조정
-                            repulsion: 900, 
-                            edgeLength: [50, 130], 
-                            gravity: 0.35 // 중앙에 안정적으로 모이게 하는 중력 강화
-                        },
-                        lineStyle: {
-                            color: 'source',
-                            curveness: 0.2, 
-                            opacity: 0.4 
-                        }
-                    }
-                ]
-            };
-
-            myChart.setOption(option, true);
-            myChart.hideLoading(); 
-        }
-
-        myChart.on('click', function (params) {
-            const nodeData = params.data;
-            const tableContainer = document.getElementById('table-container');
-            const infoBoxTitle = document.querySelector('#infoBox h2');
-
-            // Category 0, 1, 2 노드를 클릭하면 해당 소속의 콘텐츠 목록 표출
-            if ([0, 1, 2].includes(nodeData.category) && nodeData.contentList) {
-                const baseName = nodeData.category === 1 ? nodeData.name.split(' (')[0] : nodeData.name;
-                const displayName = baseName + " 콘텐츠 목록";
-                
-                infoBoxTitle.textContent = displayName + ` (총 ${nodeData.contentList.length}건)`;
-
-                let tableHTML = '<table><thead><tr><th style="width: 15%;" class="text-center">연번</th><th>콘텐츠명</th><th style="width: 25%;">학문분류</th></tr></thead><tbody>';
-                
-                nodeData.contentList.forEach((row, index) => {
-                    const contentName = row['콘텐츠명'] || '-';
-                    const category = row['학문분류'] || '-';
-                    tableHTML += `
-                        <tr>
-                            <td class="text-center">${index + 1}</td>
-                            <td>${contentName}</td>
-                            <td>${category}</td>
-                        </tr>
-                    `;
-                });
-                
-                tableHTML += '</tbody></table>';
-                tableContainer.innerHTML = tableHTML;
-            }
-            // Category 3 (콘텐츠) 노드를 클릭하면 단일 콘텐츠 상세 정보 표출
-            else if (nodeData.category === 3 && nodeData.value) {
-                const detailData = nodeData.value;
-                infoBoxTitle.textContent = "상세 정보 : " + nodeData.name;
-
-                let tableHTML = '<table><tbody>';
-                for (const key in detailData) {
-                    if (detailData.hasOwnProperty(key)) {
-                        const cellValue = detailData[key] ? detailData[key] : '-';
-                        tableHTML += `
-                            <tr>
-                                <th style="width: 35%;">${key}</th>
-                                <td>${cellValue}</td>
-                            </tr>
-                        `;
-                    }
-                }
-                
-                tableHTML += '</tbody></table>';
-                tableContainer.innerHTML = tableHTML;
-            }
-        });
-
-        window.addEventListener('DOMContentLoaded', () => {
-            myChart.showLoading(); 
-
-            const csvFilePath = 'data.csv'; 
-
-            Papa.parse(csvFilePath, {
-                download: true,
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    const csvData = results.data;
-                    
-                    document.getElementById('table-container').innerHTML = `
-                        <p class="placeholder-text" style="color:#a371f7; font-weight:bold;">
-                            데이터 로드 완료! <br><br>
-                            1. 마우스를 올려서 생략된 긴 텍스트를 확인해보세요.<br><br>
-                            2. <b>[부서명]</b> 등 큰 노드를 클릭하면 해당 그룹의 전체 목록이 표출됩니다.<br><br>
-                            3. <b>[콘텐츠명]</b>(작은 점)을 클릭하면 단일 세부 정보가 표출됩니다.
-                        </p>
-                    `;
-                    
-                    const graphData = buildGraphData(csvData);
-                    renderGraph(graphData);
-                },
-                error: function(err) {
-                    alert("데이터를 불러오는 중 오류가 발생했습니다. CSV 파일명(data.csv)과 경로를 확인해주세요.");
-                    console.error(err);
-                    myChart.hideLoading();
-                    document.getElementById('loading-text').textContent = "데이터 로드 실패";
-                }
-            });
-        });
-    </script>
-</body>
-</html>
+                            repulsion: 600, // 기본적으로 많은 노드가 숨겨져 있으므로 밀어내는 힘을
