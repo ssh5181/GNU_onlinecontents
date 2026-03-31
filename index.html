@@ -110,7 +110,6 @@
                 tooltip: {
                     trigger: 'item',
                     formatter: function(params) {
-                        // 툴팁에서는 부가적인 괄호 설명 등을 제거하고 깔끔하게 이름만 출력
                         if (params.data.category === 1) return params.name.split(' (')[0];
                         return params.name;
                     }
@@ -130,7 +129,6 @@
                         categories: [
                             { name: '공동활용 그룹', label: { fontSize: 18, fontWeight: 'bold', color: '#fff' } },
                             { name: 'AI교육 여부', label: { fontSize: 14, fontWeight: 'bold' } },
-                            // 🔥 카테고리 2(콘텐츠): 폰트 사이즈를 8로 대폭 줄이고 색상도 어둡게(#666) 처리하여 덜 눈에 띄게 함
                             { name: '콘텐츠', label: { fontSize: 8, color: '#666' } } 
                         ],
                         roam: true, 
@@ -139,7 +137,6 @@
                             show: true,
                             position: 'right',
                             formatter: function(params) {
-                                // 🔥 콘텐츠 노드의 텍스트 길이를 5글자로 제한하여 겹침 방지 극대화
                                 if (params.data.category === 2 && params.name.length > 5) {
                                     return params.name.substring(0, 5) + '..';
                                 }
@@ -149,9 +146,8 @@
                                 return params.name;
                             }
                         },
-                        // 🔥 마우스 호버(Emphasis) 효과 추가: 마우스를 올리면 연결된 선이 강조되고 글씨가 원래 크기로 다 보임
                         emphasis: {
-                            focus: 'adjacency', // 마우스 올린 노드와 연결된 노드들만 밝게 표시 (주변은 어두워짐)
+                            focus: 'adjacency', 
                             label: {
                                 show: true,
                                 fontSize: 13,
@@ -161,14 +157,15 @@
                                 borderRadius: 4,
                                 formatter: function(params) {
                                     if (params.data.category === 1) return params.name.split(' (')[0];
-                                    return params.name; // 마우스 올렸을 땐 줄임말 없이 전체 이름 표시
+                                    return params.name; 
                                 }
                             }
                         },
                         force: {
-                            repulsion: 1200, 
-                            edgeLength: [100, 300], 
-                            gravity: 0.15 
+                            // 🔥 반발력을 줄이고 중력을 대폭 올려 두 묶음이 화면 중앙에서 가깝게 유지되도록 변경
+                            repulsion: 800, // 기존 1200에서 800으로 감소 (너무 심하게 밀어내지 않음)
+                            edgeLength: [80, 200], // 선 길이 축소 (노드들이 중심부로 더 모임)
+                            gravity: 0.45 // 기존 0.15에서 0.45로 대폭 증가 (중앙으로 강하게 끌어당김)
                         },
                         lineStyle: {
                             color: 'source',
