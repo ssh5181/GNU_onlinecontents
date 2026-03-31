@@ -2,468 +2,148 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>공동교육센터 프로그램 네트워크 시각화</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>교육혁신처 온라인콘텐츠 마인드맵</title>
     
-    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
 
     <style>
-        body, html {
-            margin: 0; padding: 0; width: 100%; height: 100%;
-            font-family: 'Pretendard', 'Malgun Gothic', sans-serif;
-            background-color: #f8f9fa;
-            overscroll-behavior-y: none;
+        /* 전체 화면 꽉 차게 설정 */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #f9f9f9;
         }
 
-        #control-bar {
-            padding: 10px 20px; background-color: #343a40; color: white;
-            display: flex; align-items: center; gap: 15px; flex-wrap: wrap;
-            box-sizing: border-box;
+        /* 상단 헤더 및 파일 업로드 영역 */
+        header {
+            background-color: #003366; /* 대학/기관 느낌의 차분한 남색 */
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
-        #control-bar select {
-            padding: 5px; border-radius: 4px; border: none; font-family: inherit;
+        header h1 {
+            margin: 0;
+            font-size: 1.2rem;
         }
 
-        #app-container {
-            display: flex; width: 100%; height: calc(100vh - 50px); flex-direction: row;
+        /* 메인 콘텐츠 영역 (좌우 분할) */
+        .container {
+            display: flex;
+            flex: 1; /* 남은 화면 높이를 모두 차지 */
+            overflow: hidden;
         }
 
-        #network-container {
-            flex: 7; height: 100%; background-color: #ffffff; position: relative;
+        /* 좌측: 마인드맵 차트 영역 (70%) */
+        #mindmap-area {
+            flex: 7;
+            background-color: white;
+            border-right: 2px solid #ddd;
+            position: relative;
         }
 
-        #loading-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(255,255,255,0.8); z-index: 1000;
-            display: flex; justify-content: center; align-items: center;
-            font-size: 1.2rem; font-weight: bold; color: #495057;
+        /* 우측: 상세 정보 테이블 영역 (30%) */
+        #detail-area {
+            flex: 3;
+            padding: 20px;
+            background-color: #ffffff;
+            overflow-y: auto; /* 내용이 길면 스크롤 생성 */
         }
 
-        #detail-panel {
-            flex: 3; height: 100%; background-color: #f1f3f5;
-            border-left: 2px solid #dee2e6; padding: 20px; box-sizing: border-box;
-            overflow-y: auto; box-shadow: -4px 0 15px rgba(0,0,0,0.05);
+        .info-box {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 15px;
+            background-color: #f4f7f6;
         }
 
-        #detail-panel h2 {
-            margin-top: 0; color: #343a40; font-size: 1.5rem;
-            border-bottom: 2px solid #adb5bd; padding-bottom: 10px;
+        .info-box h2 {
+            margin-top: 0;
+            font-size: 1.1rem;
+            color: #333;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
         }
 
-        .placeholder-text {
-            color: #868e96; text-align: center; margin-top: 50px;
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
         }
 
-        @media (max-width: 768px) {
-            #control-bar {
-                flex-direction: column; 
-                align-items: flex-start; 
-                gap: 10px;
-                padding: 12px 15px;
-            }
+        table th, table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
 
-            .filter-container {
-                width: 100%;
-                display: flex;
-                justify-content: space-between; 
-                align-items: center;
-                border-left: none !important; 
-                padding-left: 0 !important;
-                margin-left: 0 !important;
-            }
-
-            .filter-container select {
-                width: 60%; 
-            }
-
-            #app-container {
-                flex-direction: column; 
-                height: calc(100vh - 110px); 
-            }
-
-            #network-container {
-                flex: none;
-                height: 55%; 
-            }
-
-            #detail-panel {
-                flex: none;
-                height: 45%; 
-                border-left: none;
-                border-top: 2px solid #dee2e6; 
-                padding: 15px;
-            }
-
-            #detail-panel h2 {
-                font-size: 1.2rem; 
-            }
+        table th {
+            background-color: #e9ecef;
+            width: 35%;
         }
     </style>
 </head>
 <body>
-    <div id="control-bar">
-        <div style="font-weight: bold; font-size: 1.1rem;">
-            📌 공동교육센터 공동활용 온라인콘텐츠 현황
-        </div>
-        
-        <div class="filter-container" style="border-left: 1px solid #6c757d; padding-left: 15px; margin-left: auto;">
-            <label for="semesterFilter">운영학기:</label>
-            <select id="semesterFilter">
-                <option value="all">전체</option>
-            </select>
-        </div>
 
-        <div class="filter-container">
-            <label for="fundingFilter">재원:</label>
-            <select id="fundingFilter">
-                <option value="all">전체</option>
-            </select>
+    <header>
+        <h1>온라인콘텐츠 활용 현황 시각화</h1>
+        <div>
+            <label for="csvFileInput" style="margin-right: 10px;">데이터 파일(CSV) 선택:</label>
+            <input type="file" id="csvFileInput" accept=".csv" />
         </div>
-    </div>
-    
-    <div id="app-container">
-        <div id="network-container">
-            <div id="loading-overlay">데이터를 불러오는 중입니다...</div>
-        </div>
-        <div id="detail-panel">
-            <h2>상세 정보</h2>
-            <div id="detail-content">
-                <p class="placeholder-text">캔버스에서 노드(점)를 터치하면<br>상세 내역이 이곳에 표시됩니다.</p>
+    </header>
+
+    <div class="container">
+        <div id="mindmap-area"></div>
+        
+        <div id="detail-area">
+            <div class="info-box" id="infoBox">
+                <h2>콘텐츠 상세 정보</h2>
+                <p style="color: #666;">마인드맵에서 콘텐츠명을 클릭하면 이곳에 세부 정보가 나타납니다.</p>
+                <div id="table-container"></div>
             </div>
         </div>
     </div>
 
     <script>
-        let nodesData = [];
-        let edgesData = [];
-        let network = null;
-        let nodesDataSet = null;
+        // ECharts 차트 인스턴스 초기화 (전역 변수)
+        let myChart = echarts.init(document.getElementById('mindmap-area'));
 
-        window.onload = function() {
-            fetch('data.csv')
-                .then(response => {
-                    if (!response.ok) throw new Error("CSV 파일을 찾을 수 없습니다.");
-                    return response.text();
-                })
-                .then(csvText => {
-                    Papa.parse(csvText, {
-                        header: true, skipEmptyLines: true,
-                        complete: function(results) {
-                            document.getElementById('loading-overlay').style.display = 'none';
-                            processData(results.data);
-                        },
-                        error: function(err) {
-                            alert("데이터 분석 중 오류가 발생했습니다.");
-                            console.error(err);
-                        }
-                    });
-                })
-                .catch(error => {
-                    document.getElementById('loading-overlay').innerHTML = `<span style="color:red;">오류: ${error.message}</span>`;
-                });
-        };
+        // 윈도우 크기 변경 시 차트 크기도 반응형으로 조절
+        window.addEventListener('resize', function() {
+            myChart.resize();
+        });
 
-        function processData(data) {
-            const nodeMap = new Map();
-            const edgeSet = new Set();
-            const semesters = new Set();
-            const fundings = new Set();
-            
-            nodesData = [];
-            edgesData = [];
+        // 파일 업로드 이벤트 리스너
+        document.getElementById('csvFileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
 
-            data.forEach(row => {
-                const target = row['참여대상'] ? row['참여대상'].trim() : '알수없음';
-                const dept = row['운영부서'] ? row['운영부서'].trim() : '알수없음';
-                const prog = row['프로그램명'] ? row['프로그램명'].trim() : '알수없음';
-                const semester = row['운영학기'] ? row['운영학기'].trim() : '';
-                const funding = row['재원'] ? row['재원'].trim() : '';
-
-                if (semester) semesters.add(semester);
-                if (funding) fundings.add(funding);
-
-                const targetId = 'target_' + target;
-                const deptId = 'dept_' + dept;
-                const progId = 'prog_' + prog;
-
-                if (!nodeMap.has(targetId)) {
-                    nodeMap.set(targetId, { id: targetId, label: target, group: 'Target', shape: 'box', color: '#4dabf7', font: { color: 'white' }, hidden: false });
-                }
-
-                if (!nodeMap.has(deptId)) {
-                    // 💡 운영부서 노드 스타일 변경: 진한 회색 바탕, 노란색 글씨, 크기 및 여백 확대
-                    nodeMap.set(deptId, { 
-                        id: deptId, 
-                        label: dept, 
-                        group: 'Department', 
-                        shape: 'box', 
-                        color: { background: '#495057', border: '#343a40' }, // 바탕색과 테두리
-                        font: { color: '#ffd43b', size: 18, face: 'Pretendard, "Malgun Gothic", sans-serif' }, // 노란색 글씨, 크기 확대(기존 14->18)
-                        margin: { top: 12, right: 18, bottom: 12, left: 18 }, // 글상자 여백 확대
-                        hidden: false 
-                    });
-                }
-
-                if (!nodeMap.has(progId)) {
-                    nodeMap.set(progId, { 
-                        id: progId, 
-                        label: prog,
-                        group: 'Program', 
-                        shape: 'dot', 
-                        color: '#ffa94d', 
-                        value: 0, 
-                        details: [], 
-                        hidden: false 
-                    });
-                }
-
-                const progNode = nodeMap.get(progId);
-                progNode.details.push(row);
-                progNode.value += (parseInt(row['수료자'], 10) || 0);
-
-                const edge1Id = targetId + '_' + progId;
-                if (!edgeSet.has(edge1Id)) {
-                    edgesData.push({ from: targetId, to: progId });
-                    edgeSet.add(edge1Id);
-                }
-
-                const edge2Id = deptId + '_' + progId;
-                if (!edgeSet.has(edge2Id)) {
-                    edgesData.push({ from: deptId, to: progId });
-                    edgeSet.add(edge2Id);
-                }
-            });
-
-            nodesData = Array.from(nodeMap.values());
-            
-            populateFilters('semesterFilter', semesters);
-            populateFilters('fundingFilter', fundings);
-
-            drawNetwork();
-        }
-
-        function populateFilters(selectId, setValues) {
-            const select = document.getElementById(selectId);
-            select.innerHTML = '<option value="all">전체</option>'; 
-            Array.from(setValues).sort().forEach(val => {
-                const option = document.createElement('option');
-                option.value = val;
-                option.innerText = val;
-                select.appendChild(option);
-            });
-        }
-
-        function applyFilters() {
-            const sem = document.getElementById('semesterFilter').value;
-            const fund = document.getElementById('fundingFilter').value;
-
-            nodesData.forEach(node => {
-                if (node.group === 'Program') {
-                    const isMatch = node.details.some(d => {
-                        const matchSem = (sem === 'all' || (d['운영학기'] && d['운영학기'].trim() === sem));
-                        const matchFund = (fund === 'all' || (d['재원'] && d['재원'].trim() === fund));
-                        return matchSem && matchFund;
-                    });
-                    node.hidden = !isMatch; 
-                }
-            });
-
-            nodesData.forEach(node => {
-                if (node.group === 'Target' || node.group === 'Department') {
-                    const connectedEdges = edgesData.filter(e => e.from === node.id);
-                    const connectedProgIds = connectedEdges.map(e => e.to);
-                    const hasVisibleProg = nodesData.some(n => connectedProgIds.includes(n.id) && !n.hidden);
-                    node.hidden = !hasVisibleProg;
-                }
-            });
-
-            nodesDataSet.update(nodesData);
-        }
-
-        document.getElementById('semesterFilter').addEventListener('change', applyFilters);
-        document.getElementById('fundingFilter').addEventListener('change', applyFilters);
-
-        function drawNetwork() {
-            const container = document.getElementById('network-container');
-            
-            nodesDataSet = new vis.DataSet(nodesData);
-            const data = { nodes: nodesDataSet, edges: new vis.DataSet(edgesData) };
-
-            const options = {
-                nodes: {
-                    borderWidth: 2, borderWidthSelected: 4,
-                    font: { size: 14, face: 'Pretendard, "Malgun Gothic", sans-serif', color: '#343a40' },
-                    scaling: { min: 25, max: 70, label: { enabled: true, min: 14, max: 20 } },
-                    shadow: true,
-                    chosen: {
-                        label: function(values, id, selected, hovering) {
-                            if (selected) {
-                                values.color = '#e03131'; 
-                                values.strokeWidth = 2;   
-                                values.strokeColor = '#ffffff';
-                            }
-                        },
-                        node: function(values, id, selected, hovering) {
-                            if (selected) {
-                                values.borderColor = '#e03131'; 
-                            }
-                        }
-                    }
-                },
-                edges: { 
-                    width: 1.5, 
-                    smooth: { type: 'continuous' }, 
-                    hoverWidth: 2, 
-                    selectionWidth: 4, 
-                    color: {
-                        color: '#ced4da', 
-                        highlight: '#e03131' 
-                    }
-                },
-                physics: {
-                    enabled: true, solver: 'forceAtlas2Based',
-                    forceAtlas2Based: { gravitationalConstant: -80, centralGravity: 0.01, springLength: 150, springConstant: 0.08 },
-                    stabilization: { iterations: 150, updateInterval: 25 }
-                },
-                interaction: { hover: true, dragNodes: true, dragView: true, zoomView: true }
-            };
-
-            if (network !== null) { network.destroy(); network = null; }
-
-            network = new vis.Network(container, data, options);
-
-            // 💡 캔버스가 그려질 때 개입하여 텍스트를 그리는 핵심 이벤트
-            network.on("afterDrawing", function (ctx) {
-                const positions = network.getPositions();
-                const selectedNodes = network.getSelectedNodes(); // 현재 클릭(선택)된 노드 가져오기
-                
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.font = 'bold 12px Pretendard, "Malgun Gothic", sans-serif';
-
-                nodesData.forEach(node => {
-                    // 1. 프로그램 노드의 중앙에 건수와 참여 인원 그리기 (기존 기능)
-                    if (node.group === 'Program' && !node.hidden) {
-                        const pos = positions[node.id];
-                        if (pos) {
-                            ctx.fillStyle = '#ffffff'; 
-                            ctx.fillText(`${node.details.length}건`, pos.x, pos.y - 7);
-                            ctx.fillText(`${node.value}명`, pos.x, pos.y + 7);
-                        }
-                    }
-                });
-
-                // 2. 💡 운영부서 노드가 클릭되었을 때 옆에 요약 정보 띄우기 (새로운 기능)
-                if (selectedNodes.length === 1) {
-                    const selectedNodeId = selectedNodes[0];
-                    const selectedNode = nodesData.find(n => n.id === selectedNodeId);
+            // PapaParse를 이용해 CSV 파일 읽기
+            Papa.parse(file, {
+                header: true, // 첫 줄을 열 이름(Key)으로 사용
+                skipEmptyLines: true, // 빈 줄 무시
+                complete: function(results) {
+                    const csvData = results.data;
+                    console.log("CSV 데이터 로드 완료:", csvData);
                     
-                    if (selectedNode && selectedNode.group === 'Department') {
-                        const pos = positions[selectedNodeId];
-                        if (pos) {
-                            // 필터링되어 화면에 보이는 프로그램만 통계에 반영
-                            const connectedEdges = edgesData.filter(e => e.from === selectedNodeId);
-                            const connectedProgIds = connectedEdges.map(e => e.to);
-                            const connectedProgs = nodesData.filter(n => connectedProgIds.includes(n.id) && !n.hidden);
-                            
-                            const totalProgs = connectedProgs.length;
-                            const totalParticipants = connectedProgs.reduce((sum, p) => sum + p.value, 0);
-                            
-                            const text = `📌 총 ${totalProgs}건 / ${totalParticipants}명`;
-                            
-                            // 노드 라벨 텍스트 크기를 미리 계산하여, 그보다 살짝 오른쪽에 배치
-                            ctx.font = '18px Pretendard, "Malgun Gothic", sans-serif'; 
-                            const labelWidth = ctx.measureText(selectedNode.label).width;
-                            const offsetX = pos.x + (labelWidth / 2) + 35; // 박스 우측으로 일정 간격 띄움
-                            
-                            // 다시 요약 정보용 폰트 설정
-                            ctx.font = 'bold 15px Pretendard, "Malgun Gothic", sans-serif';
-                            ctx.textAlign = 'left';
-                            ctx.textBaseline = 'middle';
-                            
-                            // 글자가 복잡한 선이나 점과 겹쳐도 잘 보이도록 하얀색 테두리(stroke) 추가
-                            ctx.lineWidth = 4;
-                            ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-                            ctx.strokeText(text, offsetX, pos.y);
-                            
-                            // 빨간색 텍스트 채우기
-                            ctx.fillStyle = '#e03131'; 
-                            ctx.fillText(text, offsetX, pos.y);
-                        }
-                    }
+                    // TODO: Step 2에서 여기서 데이터를 계층형(Tree)으로 가공하는 함수를 호출할 예정입니다.
+                    alert("데이터 로드 성공! 총 " + csvData.length + "개의 데이터를 불러왔습니다. F12를 눌러 콘솔창을 확인해보세요.");
+                },
+                error: function(err) {
+                    alert("파일을 읽는 중 오류가 발생했습니다.");
+                    console.error(err);
                 }
             });
-
-            bindNetworkEvents(); 
-        }
-
-        function bindNetworkEvents() {
-            network.on("click", function (params) {
-                const detailContent = document.getElementById('detail-content');
-                const detailTitle = document.querySelector('#detail-panel h2');
-                
-                if (params.nodes.length === 0) {
-                    detailTitle.innerText = "상세 정보";
-                    detailContent.innerHTML = '<p class="placeholder-text">캔버스에서 노드(점)를 터치하면<br>상세 내역이 이곳에 표시됩니다.</p>';
-                    return;
-                }
-
-                const nodeId = params.nodes[0];
-                const clickedNode = nodesData.find(n => n.id === nodeId);
-                if (!clickedNode) return;
-
-                detailTitle.innerText = clickedNode.label;
-                let html = '';
-
-                if (clickedNode.group === 'Program') {
-                    const sem = document.getElementById('semesterFilter').value;
-                    const fund = document.getElementById('fundingFilter').value;
-                    
-                    const filteredDetails = clickedNode.details.filter(d => {
-                        return (sem === 'all' || (d['운영학기'] && d['운영학기'].trim() === sem)) &&
-                               (fund === 'all' || (d['재원'] && d['재원'].trim() === fund));
-                    });
-
-                    html += `<div style="margin-bottom: 20px; padding: 15px; background-color: #e9ecef; border-radius: 8px;">
-                                <span style="display:inline-block; margin-right: 15px;"><strong>📊 운영 횟수:</strong> ${filteredDetails.length}회</span>
-                            </div>`;
-
-                    filteredDetails.forEach((detail) => {
-                        let satisfactionKey = Object.keys(detail).find(k => k.includes('만족도')) || '만족도';
-                        html += `
-                        <div style="border: 1px solid #ced4da; border-radius: 8px; padding: 15px; margin-bottom: 15px; background-color: #fff;">
-                            <h4 style="margin-top: 0; margin-bottom: 12px; color: #495057;">
-                                <span style="color:#ffa94d;">[${detail['운영학기'] || '학기미상'}]</span> ${detail['주제'] || '주제 없음'}
-                            </h4>
-                            <ul style="list-style: none; padding-left: 0; margin: 0; font-size: 0.95rem; color: #495057; line-height: 1.6;">
-                                <li><strong>🎯 목적:</strong> ${detail['목적'] || '-'}</li>
-                                <li><strong>🏢 운영부서:</strong> ${detail['운영부서'] || '-'}</li>
-                                <li><strong>💰 재원:</strong> ${detail['재원'] || '-'}</li>
-                                <li><strong>⭐ 만족도:</strong> ${detail[satisfactionKey] || '-'} / 5.0</li>
-                                <li><strong>🎓 수료자:</strong> ${detail['수료자'] || '0'}명</li>
-                            </ul>
-                        </div>`;
-                    });
-
-                } else if (clickedNode.group === 'Target' || clickedNode.group === 'Department') {
-                    const connectedEdges = edgesData.filter(e => e.from === nodeId);
-                    const connectedProgramIds = connectedEdges.map(e => e.to);
-                    const connectedPrograms = nodesData.filter(n => connectedProgramIds.includes(n.id) && !n.hidden);
-
-                    let groupName = clickedNode.group === 'Target' ? '대상자' : '부서';
-                    html += `<p style="font-size: 1rem; color: #495057; margin-bottom: 15px;">이 ${groupName}와(과) 연관된 프로그램은 <strong>총 ${connectedPrograms.length}개</strong>입니다.</p><ul>`;
-                    
-                    connectedPrograms.forEach(prog => {
-                        html += `<li><strong>${prog.label}</strong></li>`;
-                    });
-                    html += `</ul>`;
-                }
-
-                detailContent.innerHTML = html;
-            });
-        }
+        });
     </script>
 </body>
 </html>
