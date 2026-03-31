@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>교육혁신처 온라인콘텐츠 마인드맵</title>
+    <title>교육혁신처 온라인콘텐츠 시각화 대시보드</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
 
     <style>
-        /* 전체 화면 꽉 차게 설정 */
+        /* 기본 레이아웃 설정 */
         body {
             margin: 0;
             padding: 0;
@@ -20,9 +20,9 @@
             background-color: #f9f9f9;
         }
 
-        /* 상단 헤더 및 파일 업로드 영역 */
+        /* 상단 헤더 */
         header {
-            background-color: #003366; /* 대학/기관 느낌의 차분한 남색 */
+            background-color: #003366; 
             color: white;
             padding: 15px 20px;
             display: flex;
@@ -38,7 +38,7 @@
         /* 메인 콘텐츠 영역 (좌우 분할) */
         .container {
             display: flex;
-            flex: 1; /* 남은 화면 높이를 모두 차지 */
+            flex: 1; 
             overflow: hidden;
         }
 
@@ -55,7 +55,7 @@
             flex: 3;
             padding: 20px;
             background-color: #ffffff;
-            overflow-y: auto; /* 내용이 길면 스크롤 생성 */
+            overflow-y: auto; 
         }
 
         .info-box {
@@ -63,6 +63,7 @@
             border-radius: 8px;
             padding: 15px;
             background-color: #f4f7f6;
+            min-height: 200px;
         }
 
         .info-box h2 {
@@ -73,30 +74,45 @@
             padding-bottom: 10px;
         }
 
+        /* 동적 생성될 테이블 스타일 */
         table {
             width: 100%;
             border-collapse: collapse;
             font-size: 0.9rem;
+            margin-top: 15px;
         }
 
         table th, table td {
             border: 1px solid #ddd;
-            padding: 8px;
+            padding: 10px 8px;
             text-align: left;
         }
 
         table th {
             background-color: #e9ecef;
             width: 35%;
+            color: #333;
+            font-weight: bold;
+        }
+        
+        table tr:hover {
+            background-color: #f1f1f1;
+        }
+        
+        /* 안내 문구 */
+        .placeholder-text {
+            color: #666;
+            font-size: 0.95rem;
+            line-height: 1.5;
         }
     </style>
 </head>
 <body>
 
     <header>
-        <h1>온라인콘텐츠 활용 현황 시각화</h1>
+        <h1>온라인콘텐츠 활용 현황 데이터 시각화</h1>
         <div>
-            <label for="csvFileInput" style="margin-right: 10px;">데이터 파일(CSV) 선택:</label>
+            <label for="csvFileInput" style="margin-right: 10px; font-weight: bold;">CSV 데이터 파일 업로드:</label>
             <input type="file" id="csvFileInput" accept=".csv" />
         </div>
     </header>
@@ -107,13 +123,18 @@
         <div id="detail-area">
             <div class="info-box" id="infoBox">
                 <h2>콘텐츠 상세 정보</h2>
-                <p style="color: #666;">마인드맵에서 콘텐츠명을 클릭하면 이곳에 세부 정보가 나타납니다.</p>
-                <div id="table-container"></div>
+                <div id="table-container">
+                    <p class="placeholder-text">
+                        1. 상단의 <b>[파일 선택]</b> 버튼을 눌러 CSV 데이터를 업로드해주세요.<br><br>
+                        2. 좌측에 생성된 마인드맵 구조를 클릭하여 펼쳐보세요.<br><br>
+                        3. 끝단의 <b>[콘텐츠명]</b>을 클릭하면 이곳에 세부 정보가 표시됩니다.
+                    </p>
+                </div>
             </div>
         </div>
     </div>
 
-<script>
+    <script>
         // ECharts 차트 인스턴스 초기화
         let myChart = echarts.init(document.getElementById('mindmap-area'));
 
@@ -127,20 +148,21 @@
             const root = { name: "온라인 콘텐츠", children: [] };
 
             data.forEach(row => {
-                if (!row['콘텐츠명']) return;
+                // 콘텐츠명이 없거나 빈 행은 건너뜀
+                if (!row['콘텐츠명'] || row['콘텐츠명'].trim() === '') return;
 
                 const avail = row['공동활용가능여부'] || '분류없음';
                 const ai = row['AI교육여부'] || '분류없음';
                 const contentName = row['콘텐츠명'];
 
-                // 1단계 노드 (공동활용가능여부)
+                // 1단계 노드 (공동활용가능여부) 찾기 또는 생성
                 let availNode = root.children.find(n => n.name === avail);
                 if (!availNode) {
                     availNode = { name: avail, children: [] };
                     root.children.push(availNode);
                 }
 
-                // 2단계 노드 (AI교육여부)
+                // 2단계 노드 (AI교육여부) 찾기 또는 생성
                 let aiNode = availNode.children.find(n => n.name === ai);
                 if (!aiNode) {
                     aiNode = { name: ai, children: [] };
@@ -150,7 +172,7 @@
                 // 3단계 노드 (콘텐츠명) 및 세부 데이터 저장
                 aiNode.children.push({
                     name: contentName,
-                    value: row // 클릭 시 표출할 전체 데이터 보관
+                    value: row // 클릭 시 표출할 전체 행(Row) 데이터를 통째로 저장
                 });
             });
 
@@ -176,16 +198,16 @@
                         top: '5%',
                         left: '10%',
                         bottom: '5%',
-                        right: '30%', 
-                        symbolSize: 10,
-                        orient: 'LR',
+                        right: '35%', // 라벨이 긴 콘텐츠명을 위해 오른쪽 여백을 넉넉히 줌
+                        symbolSize: 12,
+                        orient: 'LR', // Left to Right
                         expandAndCollapse: true,
-                        initialTreeDepth: 2, 
+                        initialTreeDepth: 2, // 초기 화면에서 보여줄 뎁스
                         label: {
                             position: 'left',
                             verticalAlign: 'middle',
                             align: 'right',
-                            fontSize: 13,
+                            fontSize: 14,
                             color: '#333'
                         },
                         leaves: {
@@ -193,7 +215,7 @@
                                 position: 'right',
                                 verticalAlign: 'middle',
                                 align: 'left',
-                                color: '#003366',
+                                color: '#0055a5', // 끝단 콘텐츠명 색상 강조
                                 fontWeight: 'bold'
                             }
                         },
@@ -202,34 +224,34 @@
                 ]
             };
 
-            myChart.setOption(option);
+            myChart.setOption(option, true); // true 옵션을 주어 이전 데이터를 완전히 덮어씀
             myChart.hideLoading();
         }
 
-        // 3. (Step 4 핵심) 노드 클릭 이벤트 처리 
+        // 3. 노드 클릭 이벤트 처리 (상세 정보 표출)
         myChart.on('click', function (params) {
             const nodeData = params.data;
 
-            // value 속성이 있는 경우(즉, 끝단 콘텐츠명 노드를 클릭한 경우)에만 우측 표 업데이트
+            // value 속성이 있는 경우(끝단 콘텐츠명)에만 우측 표 업데이트
             if (nodeData && nodeData.value) {
                 const detailData = nodeData.value;
                 const tableContainer = document.getElementById('table-container');
                 const infoBoxTitle = document.querySelector('#infoBox h2');
 
-                // 우측 패널 제목을 클릭한 콘텐츠명으로 변경
+                // 우측 패널 제목 변경
                 infoBoxTitle.textContent = "상세 정보 : " + nodeData.name;
 
                 // 테이블 HTML 동적 생성
                 let tableHTML = '<table><tbody>';
                 
-                // 데이터 객체의 key, value를 순회하며 행(tr) 생성
                 for (const key in detailData) {
-                    // 빈 데이터나 불필요한 속성은 건너뛸 수 있도록 조건 추가 가능
                     if (detailData.hasOwnProperty(key)) {
+                        // 값이 비어있으면 '-'로 표시
+                        const cellValue = detailData[key] ? detailData[key] : '-';
                         tableHTML += `
                             <tr>
                                 <th>${key}</th>
-                                <td>${detailData[key] ? detailData[key] : '-'}</td>
+                                <td>${cellValue}</td>
                             </tr>
                         `;
                     }
@@ -237,7 +259,7 @@
                 
                 tableHTML += '</tbody></table>';
 
-                // 완성된 테이블을 우측 패널에 삽입
+                // 생성된 테이블 삽입
                 tableContainer.innerHTML = tableHTML;
             }
         });
@@ -247,11 +269,17 @@
             const file = e.target.files[0];
             if (!file) return;
 
+            // 새 파일을 올렸을 때 우측 상세 정보창 초기화
+            document.querySelector('#infoBox h2').textContent = "콘텐츠 상세 정보";
+            document.getElementById('table-container').innerHTML = '<p class="placeholder-text" style="color:#0055a5; font-weight:bold;">데이터 로드 완료! 좌측 마인드맵에서 콘텐츠를 클릭해보세요.</p>';
+
             Papa.parse(file, {
                 header: true,
-                skipEmptyLines: true,
+                skipEmptyLines: true, // 빈 줄 무시
                 complete: function(results) {
                     const csvData = results.data;
+                    
+                    // 데이터 가공 및 차트 렌더링
                     const treeData = buildTreeData(csvData);
                     renderMindmap(treeData);
                 },
@@ -261,7 +289,6 @@
                 }
             });
         });
-
     </script>
 </body>
 </html>
