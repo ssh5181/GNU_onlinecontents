@@ -22,8 +22,6 @@
         table th { background-color: #383838; color: #e0e0e0; font-weight: bold; }
         table tr:hover { background-color: #3d3d3d; }
         .placeholder-text { color: #aaa; font-size: 0.95rem; line-height: 1.5; }
-        
-        /* 목록 표출 시 가운데 정렬을 위한 클래스 */
         .text-center { text-align: center; }
     </style>
 </head>
@@ -46,7 +44,8 @@
                     <p class="placeholder-text">
                         1. 상단의 <b>[파일 선택]</b> 버튼으로 CSV를 업로드하세요.<br><br>
                         2. <b>[AI교육 O/X]</b> 노드를 클릭하면 해당 그룹의 전체 콘텐츠 목록이 표로 나타납니다.<br><br>
-                        3. 끝단의 <b>[콘텐츠 노드]</b>를 클릭하면 해당 콘텐츠의 세부 정보가 나타납니다.
+                        3. 마우스를 작은 노드 위에 올리면 전체 이름이 확대되어 보입니다.<br><br>
+                        4. 끝단의 <b>[콘텐츠 노드]</b>를 클릭하면 해당 콘텐츠의 세부 정보가 나타납니다.
                     </p>
                 </div>
             </div>
@@ -72,7 +71,7 @@
                 const availLabel = rawAvail === '예' ? '공동활용 가능' : '공동활용 불가';
                 
                 const rawAi = row['AI교육여부'] || 'X';
-                const aiLabel = `AI교육 ${rawAi} (${availLabel})`; // 라벨 구분을 위해 부모 그룹 명시
+                const aiLabel = `AI교육 ${rawAi} (${availLabel})`; 
                 
                 const contentName = row['콘텐츠명'];
 
@@ -80,13 +79,11 @@
                 const aiId = `ai_${availLabel}_${rawAi}`;
                 const contentId = `content_${index}`; 
 
-                // 1. 공동활용 노드 (Category 0)
                 if (!nodeMap.has(availId)) {
                     nodes.push({ id: availId, name: availLabel, category: 0, symbolSize: 55 });
                     nodeMap.set(availId, true);
                 }
 
-                // 2. AI교육 여부 노드 (Category 1)
                 let aiNode = nodes.find(n => n.id === aiId);
                 if (!aiNode) {
                     aiNode = { id: aiId, name: aiLabel, category: 1, symbolSize: 35, contentList: [] };
@@ -94,12 +91,10 @@
                     nodeMap.set(aiId, true);
                     links.push({ source: availId, target: aiId });
                 }
-                // 노드를 클릭했을 때 목록을 띄워주기 위해 배열에 데이터를 누적 저장
                 aiNode.contentList.push(row);
 
-                // 3. 콘텐츠 노드 (Category 2)
                 if (!nodeMap.has(contentId)) {
-                    nodes.push({ id: contentId, name: contentName, category: 2, value: row, symbolSize: 7 });
+                    nodes.push({ id: contentId, name: contentName, category: 2, value: row, symbolSize: 6 });
                     nodeMap.set(contentId, true);
                     links.push({ source: aiId, target: contentId });
                 }
@@ -114,7 +109,11 @@
             const option = {
                 tooltip: {
                     trigger: 'item',
-                    formatter: '{b}' 
+                    formatter: function(params) {
+                        // 툴팁에서는 부가적인 괄호 설명 등을 제거하고 깔끔하게 이름만 출력
+                        if (params.data.category === 1) return params.name.split(' (')[0];
+                        return params.name;
+                    }
                 },
                 color: ['#a371f7', '#4facfe', '#f5576c'], 
                 legend: {
@@ -131,7 +130,8 @@
                         categories: [
                             { name: '공동활용 그룹', label: { fontSize: 18, fontWeight: 'bold', color: '#fff' } },
                             { name: 'AI교육 여부', label: { fontSize: 14, fontWeight: 'bold' } },
-                            { name: '콘텐츠', label: { fontSize: 11, color: '#aaa' } } 
+                            // 🔥 카테고리 2(콘텐츠): 폰트 사이즈를 8로 대폭 줄이고 색상도 어둡게(#666) 처리하여 덜 눈에 띄게 함
+                            { name: '콘텐츠', label: { fontSize: 8, color: '#666' } } 
                         ],
                         roam: true, 
                         draggable: true, 
@@ -139,23 +139,35 @@
                             show: true,
                             position: 'right',
                             formatter: function(params) {
-                                // 콘텐츠 노드 글씨 생략 처리
-                                if (params.data.category === 2 && params.name.length > 8) {
-                                    return params.name.substring(0, 8) + '...';
+                                // 🔥 콘텐츠 노드의 텍스트 길이를 5글자로 제한하여 겹침 방지 극대화
+                                if (params.data.category === 2 && params.name.length > 5) {
+                                    return params.name.substring(0, 5) + '..';
                                 }
-                                // AI교육 노드는 괄호 부분 생략하고 깔끔하게 표출
                                 if (params.data.category === 1) {
                                     return params.name.split(' (')[0]; 
                                 }
                                 return params.name;
                             }
                         },
+                        // 🔥 마우스 호버(Emphasis) 효과 추가: 마우스를 올리면 연결된 선이 강조되고 글씨가 원래 크기로 다 보임
+                        emphasis: {
+                            focus: 'adjacency', // 마우스 올린 노드와 연결된 노드들만 밝게 표시 (주변은 어두워짐)
+                            label: {
+                                show: true,
+                                fontSize: 13,
+                                color: '#fff',
+                                backgroundColor: 'rgba(0,0,0,0.7)',
+                                padding: [4, 6],
+                                borderRadius: 4,
+                                formatter: function(params) {
+                                    if (params.data.category === 1) return params.name.split(' (')[0];
+                                    return params.name; // 마우스 올렸을 땐 줄임말 없이 전체 이름 표시
+                                }
+                            }
+                        },
                         force: {
-                            // 밀어내는 힘을 대폭 강화하여 콘텐츠 노드들이 뭉치지 않게 확 퍼트림
                             repulsion: 1200, 
-                            // 선의 길이를 유연하게 설정 (상위 노드일수록 길어지는 효과)
                             edgeLength: [100, 300], 
-                            // 중력을 높여서 두 그룹이 화면 바깥으로 날아가지 않고 화면 안쪽에 가깝게 머물도록 조절
                             gravity: 0.15 
                         },
                         lineStyle: {
@@ -176,15 +188,12 @@
             const tableContainer = document.getElementById('table-container');
             const infoBoxTitle = document.querySelector('#infoBox h2');
 
-            // 클릭한 노드가 'AI교육 여부(Category 1)'인 경우 -> 콘텐츠 목록 표출
             if (nodeData.category === 1 && nodeData.contentList) {
-                // 제목에서 괄호 제외하고 깔끔하게 출력
                 const displayName = nodeData.name.split(' (')[0] + " 콘텐츠 목록";
                 infoBoxTitle.textContent = displayName + ` (총 ${nodeData.contentList.length}건)`;
 
                 let tableHTML = '<table><thead><tr><th style="width: 15%;" class="text-center">연번</th><th>콘텐츠명</th><th style="width: 25%;">학문분류</th></tr></thead><tbody>';
                 
-                // 저장해둔 목록 데이터를 순회하며 표의 행(tr) 생성
                 nodeData.contentList.forEach((row, index) => {
                     const contentName = row['콘텐츠명'] || '-';
                     const category = row['학문분류'] || '-';
@@ -200,7 +209,6 @@
                 tableHTML += '</tbody></table>';
                 tableContainer.innerHTML = tableHTML;
             }
-            // 클릭한 노드가 끝단 '콘텐츠(Category 2)'인 경우 -> 기존의 상세 정보 표출
             else if (nodeData.category === 2 && nodeData.value) {
                 const detailData = nodeData.value;
                 infoBoxTitle.textContent = "상세 정보 : " + nodeData.name;
