@@ -27,7 +27,7 @@
 <body>
 
     <header>
-        <h1>온라인콘텐츠 네트워크(지식 그래프) 뷰</h1>
+        <h1>온라인콘텐츠 활용 여부 기반 분리형 네트워크 뷰</h1>
         <div>
             <label for="csvFileInput" style="margin-right: 10px; font-weight: bold; color: #a371f7;">CSV 데이터 업로드:</label>
             <input type="file" id="csvFileInput" accept=".csv" style="color: #fff;" />
@@ -42,9 +42,9 @@
                 <div id="table-container">
                     <p class="placeholder-text">
                         1. 상단의 <b>[파일 선택]</b> 버튼으로 CSV를 업로드하세요.<br><br>
-                        2. 마우스 휠로 확대/축소하고, 배경을 드래그해 이동할 수 있습니다.<br><br>
-                        3. 노드를 마우스로 잡고 끌어당겨 보세요. (옵시디언 방식)<br><br>
-                        4. 가장 끝단의 <b>[콘텐츠 노드]</b>를 클릭하면 상세 정보가 나타납니다.
+                        2. <b>'공동활용 가능'</b>과 <b>'불가'</b> 두 그룹으로 나뉘어 렌더링됩니다.<br><br>
+                        3. 노드를 드래그하여 두 묶음을 원하는 위치로 분리해보세요.<br><br>
+                        4. 끝단의 <b>[콘텐츠 노드]</b>를 클릭하면 상세 정보가 나타납니다.
                     </p>
                 </div>
             </div>
@@ -76,28 +76,34 @@
                 links.push({ source: source, target: target });
             }
 
-            const rootId = 'root';
-            addNode(rootId, '온라인 콘텐츠', 0, null, 40);
+            // 최상위 루트 노드(온라인 콘텐츠)를 삭제했습니다.
 
             data.forEach((row, index) => {
                 if (!row['콘텐츠명'] || row['콘텐츠명'].trim() === '') return;
 
-                const avail = row['공동활용가능여부'] || '분류없음';
-                const ai = row['AI교육여부'] || '분류없음';
+                // 직관적인 텍스트로 변환
+                const rawAvail = row['공동활용가능여부'] || '아니오';
+                const availLabel = rawAvail === '예' ? '공동활용 가능' : '공동활용 불가';
+                
+                const rawAi = row['AI교육여부'] || 'X';
+                const aiLabel = `AI교육 ${rawAi}`; // 예: 'AI교육 O', 'AI교육 X'
+                
                 const contentName = row['콘텐츠명'];
 
-                const availId = `avail_${avail}`;
-                const aiId = `ai_${avail}_${ai}`;
+                // ID 생성
+                const availId = `avail_${availLabel}`;
+                const aiId = `ai_${availLabel}_${rawAi}`;
                 const contentId = `content_${index}`; 
 
-                addNode(availId, avail, 1, null, 30);
-                addLink(rootId, availId);
+                // 1단계 노드: 각 그룹의 중심점 역할
+                addNode(availId, availLabel, 0, null, 45);
 
-                addNode(aiId, ai, 2, null, 20);
-                addLink(availId, aiId);
+                // 2단계 노드: AI 교육 여부
+                addNode(aiId, aiLabel, 1, null, 25);
+                addLink(availId, aiId); // 최상위 루트가 없으므로 1단계와 바로 연결
 
-                // 🔥 3단계 노드 (콘텐츠명): 심볼 크기를 기존 15에서 5로 대폭 축소
-                addNode(contentId, contentName, 3, row, 5);
+                // 3단계 노드: 콘텐츠명
+                addNode(contentId, contentName, 2, row, 6);
                 addLink(aiId, contentId);
             });
 
@@ -110,11 +116,11 @@
             const option = {
                 tooltip: {
                     trigger: 'item',
-                    formatter: '{b}' // 툴팁에서는 전체 콘텐츠명 표시
+                    formatter: '{b}' 
                 },
-                color: ['#a371f7', '#4facfe', '#00f2fe', '#f5576c'],
+                color: ['#a371f7', '#4facfe', '#f5576c'], // 카테고리가 3개로 줄어듦
                 legend: {
-                    data: ['루트', '공동활용', 'AI교육', '콘텐츠'],
+                    data: ['공동활용 그룹', 'AI교육 여부', '콘텐츠'],
                     textStyle: { color: '#e0e0e0' },
                     bottom: 10
                 },
@@ -124,12 +130,10 @@
                         layout: 'force', 
                         data: graphData.nodes,
                         links: graphData.links,
-                        // 🔥 카테고리별로 라벨(글씨) 크기를 세밀하게 조정
                         categories: [
-                            { name: '루트', label: { fontSize: 16, fontWeight: 'bold' } },
-                            { name: '공동활용', label: { fontSize: 14, fontWeight: 'bold' } },
-                            { name: 'AI교육', label: { fontSize: 13 } },
-                            { name: '콘텐츠', label: { fontSize: 10, color: '#999' } } // 끝단 콘텐츠 글씨 크기 10으로 축소 및 색상 톤다운
+                            { name: '공동활용 그룹', label: { fontSize: 18, fontWeight: 'bold', color: '#fff' } },
+                            { name: 'AI교육 여부', label: { fontSize: 13, fontWeight: 'bold' } },
+                            { name: '콘텐츠', label: { fontSize: 10, color: '#aaa' } } 
                         ],
                         roam: true, 
                         draggable: true, 
@@ -137,25 +141,21 @@
                             show: true,
                             position: 'right',
                             formatter: function(params) {
-                                // 🔥 글자가 10자를 넘어가면 말줄임표(...) 처리하여 겹침 방지
-                                if (params.data.category === 3 && params.name.length > 10) {
+                                if (params.data.category === 2 && params.name.length > 10) {
                                     return params.name.substring(0, 10) + '...';
                                 }
                                 return params.name;
                             }
                         },
                         force: {
-                            // 🔥 반발력 대폭 증가 (300 -> 800) : 노드들이 훨씬 멀리 퍼집니다.
-                            repulsion: 800, 
-                            // 🔥 선 길이 증가 : 좁은 공간에 뭉치는 것을 방지
-                            edgeLength: [80, 250], 
-                            // 🔥 중력 감소 (0.1 -> 0.05) : 중앙으로 모이려는 성질을 약화시킴
-                            gravity: 0.05 
+                            repulsion: 400, // 너무 멀리 날아가지 않도록 반발력 약간 조정
+                            edgeLength: [60, 200], 
+                            gravity: 0.08 // 두 묶음이 화면 중앙을 기준으로 자리잡게 유도
                         },
                         lineStyle: {
                             color: 'source',
                             curveness: 0.2, 
-                            opacity: 0.4 // 선의 투명도를 낮춰 덜 복잡해 보이게 수정
+                            opacity: 0.5 
                         }
                     }
                 ]
@@ -199,7 +199,7 @@
             if (!file) return;
 
             document.querySelector('#infoBox h2').textContent = "콘텐츠 상세 정보";
-            document.getElementById('table-container').innerHTML = '<p class="placeholder-text" style="color:#a371f7; font-weight:bold;">데이터 렌더링 완료! 마우스 휠을 굴려 확대/축소해 보세요.</p>';
+            document.getElementById('table-container').innerHTML = '<p class="placeholder-text" style="color:#a371f7; font-weight:bold;">데이터 렌더링 완료! 두 그룹으로 나뉜 네트워크를 확인해보세요.</p>';
 
             Papa.parse(file, {
                 header: true,
